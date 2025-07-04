@@ -24,7 +24,8 @@ CREATE TABLE 사원(
   지역 VARCHAR(20),
   집전화 VARCHAR(20),
   상사번호 CHAR(3),
-  부서번호 CHAR(2)
+  부서번호 CHAR(2),
+  FOREIGN KEY (부서번호) REFERENCES 부서(부서번호)
   ) DEFAULT CHARSET=utf8mb4;
   
   
