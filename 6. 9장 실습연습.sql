@@ -159,11 +159,261 @@ ORDER BY 	구매이력;
 -- 구매이력 있는 고객과 없는 고객 구분
 
 SELECT 		COUNT(DISTINCT MEM_NO) AS 고객번호
-            ,COUNT(	CASE WHEN S.CustomerID IS NULL THEN '구매이력없음'
-					WHEN S.CustomerID IS NOT NULL THEN '구매이력있음'
+            ,COUNT(	CASE WHEN S.CustomerID IS NOT NULL THEN '구매이력있음'
 					END 
-				   ) AS 구매이력
+				   ) AS 구매이력있음
+			,COUNT(	CASE WHEN S.CustomerID IS NULL THEN '구매이력없음'
+					END 
+				   ) AS 구매이력없음
 FROM 		CUSTOMER AS C
 LEFT JOIN 	SALES AS S
 ON 			C.MEM_NO = S.CustomerID;
 -- ________________________________________________________________________________________________________
+
+/*
+⬛ 확인사항_______________________________________________
+A 브랜드 매장의 매출 평균 지표 ATV, AMV, AvgFrq, Avg.Units의 값을 알고 싶습니다.
+*/
+
+SELECT 		SUM(UnitPrice*Quantity) AS 매출액
+			,SUM(Quantity) AS 주문수량
+            , COUNT(DISTINCT InvoiceNo) AS 주문건수
+            , COUNT(DISTINCT CustomerID) AS 주문고객수 
+            
+            , SUM(UnitPrice*Quantity)/COUNT(DISTINCT InvoiceNo) AS ATV
+            , SUM(UnitPrice*Quantity)/COUNT(DISTINCT CustomerID) AS AMV
+            , COUNT(DISTINCT InvoiceNo)*1.00/COUNT(DISTINCT CustomerID)*1.00 AS AvgFrq
+            , SUM(Quantity)*1.00/COUNT(DISTINCT InvoiceNo)*1.00 AS AvgUnits
+FROM 		SALES;
+
+-- _____________________________________________________________________________________________________
+
+/*
+⬛ 9.5.1 확인사항_______________________________________________
+연도 및 월별 매출 평균 지표 ATV, AMV, AvgFrq, Avg.Units의 값을 알고 싶습니다.
+*/
+
+SELECT * FROM SALES
+LIMIT 1;
+
+SELECT 		YEAR(InvoiceDate) as 연도
+			, MONTH(InvoiceDate) as 월
+			, SUM(UnitPrice*Quantity) AS 매출액
+			, SUM(Quantity) AS 주문수량
+            , COUNT(DISTINCT InvoiceNo) AS 주문건수
+            , COUNT(DISTINCT CustomerID) AS 주문고객수 
+            
+            , SUM(UnitPrice*Quantity)/COUNT(DISTINCT InvoiceNo) AS ATV
+            , SUM(UnitPrice*Quantity)/COUNT(DISTINCT CustomerID) AS AMV
+            , COUNT(DISTINCT InvoiceNo)*1.00/COUNT(DISTINCT CustomerID)*1.00 AS AvgFrq
+            , SUM(Quantity)*1.00/COUNT(DISTINCT InvoiceNo)*1.00 AS AvgUnits
+FROM 		SALES
+GROUP BY 	YEAR(InvoiceDate)
+			, MONTH(InvoiceDate);
+            
+-- ________________________________________________________________________________________________________________
+
+/*
+⬛ 9.6.1 확인사항_______________________________________________
+2011년에 가장 많이 판매된 제품 TOP 10의 정보를 확인하고 싶습니다.
+*/
+
+SELECT * FROM SALES LIMIT 1;
+
+SELECT 		StockCode AS 상품코드
+			,Description
+			,SUM(Quantity) AS "판매된 갯수"
+FROM 		SALES
+WHERE 		YEAR(InvoiceDate) = 2011
+GROUP BY 	StockCode, Description
+order by 	SUM(Quantity) DESC
+LIMIT 		10;
+
+-- _____________________________________________________________________________________________________
+
+/*
+⬛ 9.6.12 확인사항_______________________________________________
+국가별로 가장 많이 판매된 제품 순으로 실적을 구하고 싶습니다.
+*/
+
+SELECT * FROM SALES LIMIT 1;
+
+SELECT 		ROW_NUMBER() OVER (PARTITION BY 국가 ORDER BY 판매개수 DESC) AS 랭크
+			, 국가
+            , 상품코드
+            , 상품설명
+            , 판매개수
+FROM 		(
+				SELECT 		Country as 국가
+							,StockCode AS 상품코드
+							,Description AS 상품설명
+							,SUM(Quantity) AS 판매개수
+				FROM 		SALES
+				GROUP BY 	Country, StockCode, Description
+			  ) A
+ORDER BY	1;
+-- ____________________________________________________________________________________________
+
+/*
+⬛ 9.6.3 확인사항_______________________________________________
+20대 여성 고객이 가장 많이 구매한 제품 TOP 10의 정보를 확인하고 싶습니다 
+*/
+
+SELECT * FROM SALES LIMIT 1;
+SELECT * FROM CUSTOMER LIMIT 1;
+
+SELECT 		ROW_NUMBER() OVER (ORDER BY SUM(Quantity) DESC) AS 랭크
+			,상품코드
+			,상품설명
+			,SUM(Quantity) AS 개수
+FROM 		(
+			SELECT 		StockCode AS 상품코드, Description AS 상품설명, Quantity
+			FROM 		SALES AS S
+			INNER JOIN 	CUSTOMER AS C
+			ON 			S.CustomerID = C.mem_no
+			where 		gd = 'F' 
+						AND	2025 - YEAR(C.Birth_dt) BETWEEN 20 AND 29
+			) A  
+GROUP BY  	상품코드
+			,상품설명
+LIMIT 		10;
+-- ________________________________________________________________________________________________
+/*
+⬛ 9.7.1 확인사항_______________________________________________
+특정 제품(stockcode='20725')과 함께 가장 많이 구매한 제품 TOP 10의 정보를 확인하고 싶습니다 
+*/
+
+SELECT * FROM SALES ;
+
+SELECT 			StockCode AS 상품코드
+				,Description AS 상품설명
+				,SUM(Quantity) AS 개수
+FROM 			SALES AS A
+INNER JOIN 		(
+				SELECT DISTINCT InvoiceNo FROM SALES
+				WHERE StockCode ='20725'
+				) AS B
+ON 				A.InvoiceNo = B.InvoiceNo
+WHERE 			StockCode <> '20725'
+GROUP BY		StockCode ,Description
+ORDER BY		3 DESC
+LIMIT			10;
+
+-- _________________________________________________________________________________________
+
+/*
+⬛ 9.7.2 확인사항_______________________________________________
+특정 제품(stockcode='20725')과 함께 가장 많이 구매한 제품 TOP 10의 정보를 확인하고 싶습니다
+단, 이 중에서 제품명에 LUNCH가 포함된 제품은 제외합니다  
+*/
+
+SELECT 			StockCode AS 상품코드
+				,Description AS 상품명
+				,SUM(Quantity) AS 개수
+FROM 			SALES AS A
+INNER JOIN 		(
+				SELECT DISTINCT InvoiceNo FROM SALES
+				WHERE StockCode ='20725'
+				) AS B
+ON 				A.InvoiceNo = B.InvoiceNo
+WHERE 			StockCode <> '20725' 
+				AND A.Description NOT LIKE '%LUNCH%'
+GROUP BY		StockCode ,Description
+ORDER BY		3 DESC
+LIMIT			10;
+
+-- ________________________________________________________________________________________________
+
+/*
+⬛ 9.8.1 확인사항_______________________________________________
+쇼핑몰의 재구매 고객수를 확인하고 싶습니다. 
+*/
+ 
+ 
+ SELECT * FROM SALES LIMIT 1;
+  SELECT * FROM CUSTOMER LIMIT 1;
+
+SELECT 		  	A.CUSTOMERID AS 고객ID
+				,COUNT(DISTINCT A.INVOICENO) AS 재구매횟수
+FROM 		  	SALES AS A 
+INNER JOIN	  (	SELECT CustomerID
+				FROM SALES 
+				WHERE CustomerID <> ''
+				GROUP BY CustomerID
+			  ) AS B
+ON 			  	A.CustomerID = B.CustomerID
+GROUP BY		A.CUSTOMERID
+HAVING 			COUNT(DISTINCT A.INVOICENO) >= 2;
+
+-- -----------------------------------------
+
+SELECT 		  COUNT(DISTINCT A.CUSTOMERID) AS 고객ID
+FROM 		  (	
+				SELECT 		CustomerID
+				FROM 		SALES 
+				WHERE 		CustomerID <> ''
+				GROUP BY 	CustomerID
+				HAVING 		COUNT(DISTINCT INVOICENO) >= 2
+			  ) A;
+              
+-- ______________________________________________________________________________________
+
+/*
+⬛ 9.8.2 확인사항_______________________________________________
+특정제품 (StockCode = '21088'의 재구매 고객수와 구매일자 순서를 확인하고 싶습니다
+*/
+
+SELECT * FROM SALES;
+
+SELECT 	COUNT(DISTINCT CustomerID) AS 재구매횟수
+FROM 	   (SELECT  	CustomerID
+						,dense_rank() OVER (PARTITION BY CUSTOMERID ORDER BY INVOICEDATE) AS RNK
+			FROM 		SALES AS A
+			WHERE 		StockCode = '21088' AND CustomerID <> '' 
+			) A
+WHERE RNK = 2;
+
+-- ________________________________________________________________________________________
+/*
+⬛ 9.8.3 확인사항_______________________________________________
+2010년 구매이력이 있는 고객들의 2011년 유지율을 확인하고 싶습니다.
+*/
+
+SELECT 	COUNT(DISTINCT CustomerID) AS 재구매횟수
+FROM 	SALES
+WHERE	CUSTOMERID <> ''
+AND		CUSTOMERID IN (SELECT CUSTOMERID
+					   FROM		SALES
+                       WHERE 	CUSTOMERID <>''
+								AND YEAR(INVOICEDATE) = '2010'
+					  )
+AND 	YEAR(INVOICEDATE) = '2011';
+
+-- ________________________________________________________________________________________
+/*
+⬛ 9.8.4 확인사항_______________________________________________
+고객별로 첫 구매이후 재구매까지의 구매기간을 확인하고 싶습니다.
+*/
+
+-- [2] 첫 구매 이후 재구매 기간
+WITH 구매기록 AS (
+  SELECT
+    CustomerID,
+    InvoiceDate AS 구매일,
+    LAG(InvoiceDate) OVER (PARTITION BY CustomerID ORDER BY InvoiceDate) AS 이전구매일
+  FROM SALES
+  WHERE CustomerID IS NOT NULL
+)
+SELECT
+  C.mem_no,
+  C.last_name,
+  구매기록.구매일,
+  구매기록.이전구매일,
+  DATEDIFF(구매기록.구매일, 구매기록.이전구매일) AS 구매간격_일
+FROM 구매기록
+JOIN CUSTOMER C ON 구매기록.CustomerID = C.mem_no
+WHERE 구매기록.이전구매일 IS NOT NULL
+ORDER BY C.mem_no, 구매기록.구매일;
+
+
+
